@@ -1,0 +1,38 @@
+name: Lineage 15.1 TAQ90
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: self-hosted
+    timeout-minutes: 720
+
+    steps:
+      - name: Prepare packages
+        run: |
+          sudo apt update
+          sudo apt install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev
+
+      - name: Init Lineage
+        run: |
+          mkdir -p ~/android/lineage
+          cd ~/android/lineage
+          repo init -u https://github.com/LineageOS/android.git -b lineage-15.1
+          repo sync -c --no-tags --no-clone-bundle -j$(nproc)
+
+      - name: Clone device and vendor
+        run: |
+          cd ~/android/lineage
+          mkdir -p device/denver vendor/denver
+          git clone https://github.com/Tommy0412/device_denver_TAQ90/device/denver/TAQ90
+          git clone https://github.com/Tommy0412/vendor_denver_TAQ90/vendor/denver/TAQ90
+
+      - name: Build recovery
+        run: |
+          cd ~/android/lineage
+          export USE_CCACHE=1
+          ccache -M 50G
+          source build/envsetup.sh
+          lunch lineage_TAQ90-userdebug
+          mka recoveryimage
