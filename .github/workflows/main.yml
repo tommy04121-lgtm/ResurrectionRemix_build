@@ -58,7 +58,7 @@ jobs:
       - name: Sync source
         run: |
           cd ~/android/lineage
-          repo sync -c --no-tags --no-clone-bundle --optimized-fetch --prune -j4
+          repo sync -c --no-tags --no-clone-bundle --optimized-fetch --prune -j8
 
       - name: Device tree
         run: |
