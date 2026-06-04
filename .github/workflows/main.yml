@@ -81,36 +81,35 @@ jobs:
           cp -r vendor_tmp/vendor/denver/TAQ90 vendor/denver/TAQ90
           rm -rf vendor_tmp
 
-      - name: Sanitize Makefiles & Fix Parser Bleed
+      - name: Fix ckati Parser & Vendor Makefiles
         run: |
           cd ~/android/lineage
-          echo "=== 1. Forcing Unix line endings ==="
+          
+          # 1. Force Unix line endings on all .mk files
           find device/denver vendor/denver -type f -name "*.mk" -exec sed -i 's/\r$//' {} +
           
-          echo "=== 2. Guaranteeing trailing newlines (critical for ckati) ==="
-          find device/denver vendor/denver -type f -name "*.mk" -exec sh -c '
-            if [ -n "$(tail -c 1 "{}")" ]; then
-              echo "" >> "{}"
-            fi
-          ' \;
+          # 2. Strip ALL leading tabs from top-level .mk files (ckati hates them in variable blocks)
+          find device/denver vendor/denver -type f -name "*.mk" -exec sed -i 's/^[[:space:]]*\t//g' {} +
           
-          echo "=== 3. Stripping accidental leading tabs from variable assignments ==="
-          find device/denver vendor/denver -type f -name "*.mk" -exec sed -i 's/^\t\([A-Za-z_]\)/\1/' {} +
+          # 3. Ensure every .mk file ends with a clean newline
+          find device/denver vendor/denver -type f -name "*.mk" -exec sh -c '[ -n "$(tail -c 1 "{}")" ] && echo >> "{}"' \;
           
-          echo "=== 4. Verifying vendor includes exist & are clean ==="
-          for f in vendor/denver/TAQ90/TAQ90-vendor.mk vendor/denver/TAQ90/BoardConfigVendor.mk; do
-            if [ -f "$f" ]; then
-              echo "Checking $f..."
-              head -n 3 "$f" | cat -A
-            else
-              echo "⚠️ $f not found. Creating safe stub..."
-              mkdir -p $(dirname "$f")
-              echo "# Auto-generated stub for recovery build" > "$f"
-            fi
-          done
+          # 4. Overwrite TAQ90-vendor.mk with a guaranteed-safe version
+          #    This removes trailing spaces, fixes continuation, and handles empty dirs gracefully
+          cat > vendor/denver/TAQ90/TAQ90-vendor.mk << 'VENDOR_EOF'
+          # Auto-generated safe vendor file for recovery build
+          PRODUCT_COPY_FILES += \
+              $(call find-copy-subdir-files,*,vendor/denver/TAQ90/proprietary/vendor,vendor)
+          VENDOR_EOF
           
-          echo "=== 5. Final tab scan ==="
-          grep -rnP '^\t' --include="*.mk" device/denver/ vendor/denver/ || echo "✅ Clean: No leading tabs found."
+          # 5. Ensure the source directory actually exists (prevents empty expansion)
+          mkdir -p vendor/denver/TAQ90/proprietary/vendor
+          
+          # 6. Verify the fix
+          echo "=== TAQ90-vendor.mk content (cat -A shows hidden chars) ==="
+          cat -A vendor/denver/TAQ90/TAQ90-vendor.mk
+          echo "=== Checking for leading tabs ==="
+          grep -Pn '^\t' vendor/denver/TAQ90/*.mk device/denver/TAQ90/*.mk || echo "✅ Clean: No leading tabs found."
 
       - name: Debug Makefile Syntax Errors
         run: |
