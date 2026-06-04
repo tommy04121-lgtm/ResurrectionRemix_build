@@ -81,25 +81,36 @@ jobs:
           cp -r vendor_tmp/vendor/denver/TAQ90 vendor/denver/TAQ90
           rm -rf vendor_tmp
 
-      - name: Normalize device and vendor line endings
+      - name: Sanitize Makefiles & Fix Parser Bleed
         run: |
           cd ~/android/lineage
-          find device/denver/TAQ90 vendor/denver/TAQ90 -type f \
-            \( -name '*.mk' -o -name '*.sh' -o -name '*.rc' -o \
-               -name '*.fstab' -o -name '*.txt' -o -name '*.prop' -o \
-               -name '*.xml' -o -name 'AndroidProducts.mk' \) \
-            -print0 | xargs -0 sed -i 's/\r$//'
-          find vendor/denver/TAQ90 -depth -print0 | grep -zE '[#,\[\]]' | xargs -0r rm -rf
-          echo "--- unsafe vendor blob paths after cleanup ---"
-          find vendor/denver/TAQ90/proprietary -print | grep -E '[#,\[\]]|\.mk$' || true
-          if [ ! -f device/denver/TAQ90/lineage.mk ]; then
-            printf '%s\n' '$(call inherit-product, device/denver/TAQ90/lineage_TAQ90.mk)' \
-              > device/denver/TAQ90/lineage.mk
-          fi
-          grep -q '^TARGET_USES_MKE2FS *:= *true' device/denver/TAQ90/BoardConfig.mk || \
-            printf '\nTARGET_USES_MKE2FS := true\n' >> device/denver/TAQ90/BoardConfig.mk
-          echo "--- lineage.mk ---"
-          cat device/denver/TAQ90/lineage.mk
+          echo "=== 1. Forcing Unix line endings ==="
+          find device/denver vendor/denver -type f -name "*.mk" -exec sed -i 's/\r$//' {} +
+          
+          echo "=== 2. Guaranteeing trailing newlines (critical for ckati) ==="
+          find device/denver vendor/denver -type f -name "*.mk" -exec sh -c '
+            if [ -n "$(tail -c 1 "{}")" ]; then
+              echo "" >> "{}"
+            fi
+          ' \;
+          
+          echo "=== 3. Stripping accidental leading tabs from variable assignments ==="
+          find device/denver vendor/denver -type f -name "*.mk" -exec sed -i 's/^\t\([A-Za-z_]\)/\1/' {} +
+          
+          echo "=== 4. Verifying vendor includes exist & are clean ==="
+          for f in vendor/denver/TAQ90/TAQ90-vendor.mk vendor/denver/TAQ90/BoardConfigVendor.mk; do
+            if [ -f "$f" ]; then
+              echo "Checking $f..."
+              head -n 3 "$f" | cat -A
+            else
+              echo "⚠️ $f not found. Creating safe stub..."
+              mkdir -p $(dirname "$f")
+              echo "# Auto-generated stub for recovery build" > "$f"
+            fi
+          done
+          
+          echo "=== 5. Final tab scan ==="
+          grep -rnP '^\t' --include="*.mk" device/denver/ vendor/denver/ || echo "✅ Clean: No leading tabs found."
 
       - name: Debug Makefile Syntax Errors
         run: |
