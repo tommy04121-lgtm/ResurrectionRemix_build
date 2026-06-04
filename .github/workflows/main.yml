@@ -76,6 +76,7 @@ jobs:
 
       - name: Build
         run: |
+          export ANDROID_BUILD_TOP=~/android/lineage
           cd ~/android/lineage
           ls -l device/denver/TAQ90/lineage_TAQ90.mk
           export USE_CCACHE=1
