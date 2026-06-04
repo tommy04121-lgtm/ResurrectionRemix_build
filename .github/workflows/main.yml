@@ -155,6 +155,25 @@ jobs:
             fi
           done
 
+      - name: Fix Lineage 15.1 ckati Parser Bleed
+        run: |
+          cd ~/android/lineage
+          
+          echo "=== 1. Sanitizing vendor/lineage .mk files (known ckati trigger) ==="
+          find vendor/lineage -type f -name "*.mk" -exec sed -i 's/[[:space:]]*$//' {} +
+          find vendor/lineage -type f -name "*.mk" -exec sed -i 's/\r$//' {} +
+          find vendor/lineage -type f -name "*.mk" -exec sh -c '[ -n "$(tail -c 1 "{}")" ] && echo >> "{}"' \;
+          
+          echo "=== 2. Re-sanitizing device/vendor trees ==="
+          find device/denver vendor/denver -type f -name "*.mk" -exec sed -i 's/[[:space:]]*$//' {} +
+          find device/denver vendor/denver -type f -name "*.mk" -exec sed -i 's/\r$//' {} +
+          find device/denver vendor/denver -type f -name "*.mk" -exec sh -c '[ -n "$(tail -c 1 "{}")" ] && echo >> "{}"' \;
+          
+          echo "=== 3. Quick ckati parse validation ==="
+          source build/envsetup.sh &> /dev/null
+          lunch lineage_TAQ90-userdebug &> /dev/null
+          make -n recoveryimage 2>&1 | grep -iE "error|warning|commands commence|missing dependencies" || echo "✅ Parse validation passed!"
+
       - name: Build recovery
         run: |
           cd ~/android/lineage
