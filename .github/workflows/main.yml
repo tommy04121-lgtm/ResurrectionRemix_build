@@ -261,6 +261,15 @@ jobs:
             echo "PRODUCT_PACKAGES += telephony-ext" >> device/denver/TAQ90/device.mk
           echo "✅ telephony-ext stub created to satisfy ninja dependency"
 
+      - name: Fix Ninja NOTICE.xml.gz Dependency Cycle
+        run: |
+          cd ~/android/lineage
+          echo "=== Patching build/core/Makefile to break NOTICE cycle ==="
+          # This is a known Android 8.1 ninja bug. We safely comment out the cyclic rule.
+          sed -i 's/^$(notice_file): $(INSTALLED_NOTICE_FILE)/#&/' build/core/Makefile
+          sed -i 's/^$(TARGET_OUT)\/obj\/NOTICE.xml: $(INSTALLED_NOTICE_FILE)/#&/' build/core/Makefile
+          echo "✅ NOTICE.xml.gz dependency cycle patched"
+
       - name: Free Disk Space for Full ROM Build
         run: |
           cd ~/android/lineage
