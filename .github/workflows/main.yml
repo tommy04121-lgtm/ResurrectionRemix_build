@@ -47,37 +47,6 @@ jobs:
           python --version
           echo "✅ Python 2.7 set as default"
 
-      - name: Harden Build Environment for Lineage 15.1 CI
-        run: |
-          cd ~/android/lineage
-          
-          # 1. Fix Jack Server OOM crashes (GitHub runners have ~7GB RAM)
-          export JACK_SERVER_VM_ARGUMENTS="-Xmx4096m -Dfile.encoding=UTF-8"
-          export ANDROID_JACK_VM_ARGS="-Xmx4096m"
-          echo "✅ Jack server memory limited to 4GB"
-          
-          # 2. Force Python 2 for ALL build scripts
-          export BUILD_PYTHON_VERSION=2
-          export PYTHON=python2
-          sudo ln -sf /usr/bin/python2.7 /usr/bin/python
-          echo "✅ Python 2 forced globally"
-          
-          # 3. Optimize ccache for CI disk limits (prevents runner OOM)
-          export USE_CCACHE=1
-          export CCACHE_EXEC=/usr/bin/ccache
-          ccache -M 3G  # GitHub free tier runs out of disk >5GB ccache
-          echo "✅ ccache capped at 3GB"
-          
-          # 4. Pre-create output dirs to avoid permission races
-          mkdir -p out/target/product/TAQ90/obj
-          echo "✅ Output directories initialized"
-          
-          # 5. Rockchip mkbootimg fallback (prevents packaging crashes)
-          if ! grep -q "BOARD_MKBOOTIMG_ARGS" device/denver/TAQ90/BoardConfig.mk; then
-            echo "BOARD_MKBOOTIMG_ARGS += --base 0x60000000 --pagesize 2048 --ramdisk_offset 0x62000000 --tags_offset 0x60000100" >> device/denver/TAQ90/BoardConfig.mk
-            echo "✅ Safe mkbootimg args added"
-          fi
-
       - name: Use Java 8
         run: |
           sudo update-alternatives --set java /usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java
@@ -239,6 +208,37 @@ jobs:
               echo "$f -> ifeq/ifneq: $if_count | endif: $endif_count"
             fi
           done
+
+      - name: Harden Build Environment for Lineage 15.1 CI
+        run: |
+          cd ~/android/lineage
+          
+          # 1. Fix Jack Server OOM crashes (GitHub runners have ~7GB RAM)
+          export JACK_SERVER_VM_ARGUMENTS="-Xmx4096m -Dfile.encoding=UTF-8"
+          export ANDROID_JACK_VM_ARGS="-Xmx4096m"
+          echo "✅ Jack server memory limited to 4GB"
+          
+          # 2. Force Python 2 for ALL build scripts
+          export BUILD_PYTHON_VERSION=2
+          export PYTHON=python2
+          sudo ln -sf /usr/bin/python2.7 /usr/bin/python
+          echo "✅ Python 2 forced globally"
+          
+          # 3. Optimize ccache for CI disk limits (prevents runner OOM)
+          export USE_CCACHE=1
+          export CCACHE_EXEC=/usr/bin/ccache
+          ccache -M 3G  # GitHub free tier runs out of disk >5GB ccache
+          echo "✅ ccache capped at 3GB"
+          
+          # 4. Pre-create output dirs to avoid permission races
+          mkdir -p out/target/product/TAQ90/obj
+          echo "✅ Output directories initialized"
+          
+          # 5. Rockchip mkbootimg fallback (prevents packaging crashes)
+          if ! grep -q "BOARD_MKBOOTIMG_ARGS" device/denver/TAQ90/BoardConfig.mk; then
+            echo "BOARD_MKBOOTIMG_ARGS += --base 0x60000000 --pagesize 2048 --ramdisk_offset 0x62000000 --tags_offset 0x60000100" >> device/denver/TAQ90/BoardConfig.mk
+            echo "✅ Safe mkbootimg args added"
+          fi
 
       - name: Build recovery
         run: |
