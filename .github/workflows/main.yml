@@ -298,6 +298,24 @@ jobs:
           echo "✅ Freed disk space. Current usage:"
           df -h .
 
+      - name: Fix Jack Server SSL Error (Ubuntu 22.04)
+        run: |
+          cd ~/android/lineage
+          echo "=== 1. Re-enabling TLSv1 in Java 8 ==="
+          # Removes TLSv1 and TLSv1.1 from the disabled algorithms list
+          sudo sed -i 's/TLSv1, TLSv1.1, //g' /etc/java-8-openjdk/security/java.security || true
+          
+          echo "=== 2. Lowering OpenSSL 3.0 Security Level ==="
+          # Ubuntu 22.04 uses OpenSSL 3.0 which blocks TLSv1 at the system level.
+          # We lower the security level to 0 to allow it.
+          sudo sed -i 's/DEFAULT@SECLEVEL=2/DEFAULT@SECLEVEL=0/g' /etc/ssl/openssl.cnf || true
+          sudo sed -i 's/DEFAULT@SECLEVEL=1/DEFAULT@SECLEVEL=0/g' /etc/ssl/openssl.cnf || true
+          
+          echo "=== 3. Cleaning up old Jack server state ==="
+          prebuilts/sdk/tools/jack-admin kill-server 2>/dev/null || true
+          rm -rf ~/.jack-server ~/.jack 2>/dev/null || true
+          echo "✅ Jack server SSL environment fixed"
+
       - name: Build Full LineageOS ROM (Bacon)
         run: |
           cd ~/android/lineage
