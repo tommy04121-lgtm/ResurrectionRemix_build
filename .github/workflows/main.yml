@@ -322,37 +322,44 @@ jobs:
           echo "✅ Freed disk space. Current usage:"
           df -h .
 
-      - name: Fix WebView Prebuilt (Git LFS)
+      - name: Bulletproof WebView Prebuilt Fix (Git LFS)
         run: |
           cd ~/android/lineage
+          WV_DIR="external/chromium-webview/prebuilt"
           
-          echo "=== 1. Installing Git LFS ==="
-          sudo apt-get install -y git-lfs
-          git lfs install
+          echo "=== 1. Nuking old broken directory ==="
+          rm -rf "$WV_DIR/arm"
+          mkdir -p "$WV_DIR"
+          cd "$WV_DIR"
           
-          echo "=== 2. Removing the broken 133-byte pointer file ==="
-          rm -rf external/chromium-webview/prebuilt/arm
+          echo "=== 2. Cloning with explicit branch and LFS ==="
+          # Try lineage-15.1 first, fallback to cm-15.1, fallback to default
+          git clone --branch lineage-15.1 --depth 1 https://github.com/LineageOS/android_external_chromium-webview_prebuilt_arm.git arm || \
+          git clone --branch cm-15.1 --depth 1 https://github.com/LineageOS/android_external_chromium-webview_prebuilt_arm.git arm || \
+          git clone --depth 1 https://github.com/LineageOS/android_external_chromium-webview_prebuilt_arm.git arm
           
-          echo "=== 3. Cloning prebuilt repo and fetching real binary ==="
-          mkdir -p external/chromium-webview/prebuilt
-          cd external/chromium-webview/prebuilt
-          git clone https://github.com/LineageOS/android_external_chromium-webview_prebuilt_arm.git arm
           cd arm
-          git checkout lineage-15.1
+          git lfs install
           git lfs pull
           
-          echo "=== 4. CRITICAL: Verifying real APK size ==="
-          APK_SIZE=$(stat -c%s "webview.apk" 2>/dev/null || echo 0)
-          if [ "$APK_SIZE" -lt 1000000 ]; then
-            echo "❌ FATAL ERROR: File is still too small ($APK_SIZE bytes)!"
-            echo "File type:"
-            file webview.apk
-            echo "File content:"
-            cat webview.apk
-            exit 1 # Fail instantly, saving you an hour
+          echo "=== 3. CRITICAL: Verifying real APK size ==="
+          if [ -f "webview.apk" ]; then
+            APK_SIZE=$(stat -c%s "webview.apk" 2>/dev/null || echo 0)
+            if [ "$APK_SIZE" -gt 1000000 ]; then
+              echo "✅ SUCCESS: Real webview.apk downloaded!"
+              echo "   File size: $(ls -lh webview.apk | awk '{print $5}')"
+              echo "   File type: $(file -b webview.apk)"
+            else
+              echo "❌ FATAL ERROR: File is still too small ($APK_SIZE bytes)!"
+              echo "   File type: $(file -b webview.apk)"
+              echo "   File content:"
+              cat webview.apk
+              exit 1 # Fail instantly to save time
+            fi
           else
-            echo "✅ SUCCESS: Real webview.apk downloaded!"
-            echo "   File size: $(ls -lh webview.apk | awk '{print $5}')"
+            echo "❌ FATAL ERROR: webview.apk not found after clone!"
+            ls -la
+            exit 1
           fi
 
       - name: Build Full LineageOS ROM (Bacon)
