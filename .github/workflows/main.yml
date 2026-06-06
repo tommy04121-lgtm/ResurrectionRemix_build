@@ -240,27 +240,6 @@ jobs:
             echo "✅ Safe mkbootimg args added"
           fi
 
-      - name: Create telephony-ext Stub for Tablet Build
-        run: |
-          cd ~/android/lineage
-          mkdir -p device/denver/TAQ90/telephony-ext
-          cat > device/denver/TAQ90/telephony-ext/Android.mk << 'MK_EOF'
-          LOCAL_PATH := $(call my-dir)
-          include $(CLEAR_VARS)
-          LOCAL_MODULE := telephony-ext
-          LOCAL_SRC_FILES := stub.java
-          LOCAL_MODULE_TAGS := optional
-          LOCAL_MODULE_CLASS := JAVA_LIBRARIES
-          include $(BUILD_JAVA_LIBRARY)
-          MK_EOF
-          
-          echo "package android.telephony; public class TelephonyExtStub {}" > device/denver/TAQ90/telephony-ext/stub.java
-          
-          # Safely append to device.mk only once
-          grep -q "PRODUCT_PACKAGES += telephony-ext" device/denver/TAQ90/device.mk || \
-            echo "PRODUCT_PACKAGES += telephony-ext" >> device/denver/TAQ90/device.mk
-          echo "✅ telephony-ext stub created to satisfy ninja dependency"
-
       - name: Fix Ninja NOTICE.xml Dependency Cycle (Guaranteed)
         run: |
           cd ~/android/lineage
@@ -287,16 +266,30 @@ jobs:
           touch out/target/product/TAQ90/obj/NOTICE.xml
           echo "✅ Dummy NOTICE files created"
 
-      - name: Free Disk Space for Full ROM Build
+      - name: Create telephony-ext Stub for Tablet Build (Fixed)
         run: |
           cd ~/android/lineage
-          # Safely clear heavy intermediates without breaking host toolchain cache
-          rm -rf out/target/common/obj/JAVA_LIBRARIES \
-               out/target/product/TAQ90/obj \
-               out/host/linux-x86/obj/SHARED_LIBRARIES \
-               out/host/linux-x86/obj/STATIC_LIBRARIES 2>/dev/null || true
-          echo "✅ Freed disk space. Current usage:"
-          df -h .
+          mkdir -p device/denver/TAQ90/telephony-ext
+          
+          # Create the Android.mk file
+          cat > device/denver/TAQ90/telephony-ext/Android.mk << 'MK_EOF'
+          LOCAL_PATH := $(call my-dir)
+          include $(CLEAR_VARS)
+          LOCAL_MODULE := telephony-ext
+          LOCAL_SRC_FILES := stub.java
+          LOCAL_MODULE_TAGS := optional
+          LOCAL_MODULE_CLASS := JAVA_LIBRARIES
+          include $(BUILD_JAVA_LIBRARY)
+          MK_EOF
+          
+          # Create the stub.java file WITHOUT the 'public' keyword
+          echo "package android.telephony; class TelephonyExtStub {}" > device/denver/TAQ90/telephony-ext/stub.java
+          
+          # Safely append to device.mk only once
+          grep -q "PRODUCT_PACKAGES += telephony-ext" device/denver/TAQ90/device.mk || \
+            echo "PRODUCT_PACKAGES += telephony-ext" >> device/denver/TAQ90/device.mk
+            
+          echo "✅ telephony-ext stub created and Java syntax fixed"
 
       - name: Fix Jack Server SSL Error (Ubuntu 22.04)
         run: |
@@ -315,6 +308,17 @@ jobs:
           prebuilts/sdk/tools/jack-admin kill-server 2>/dev/null || true
           rm -rf ~/.jack-server ~/.jack 2>/dev/null || true
           echo "✅ Jack server SSL environment fixed"
+
+      - name: Free Disk Space for Full ROM Build
+        run: |
+          cd ~/android/lineage
+          # Safely clear heavy intermediates without breaking host toolchain cache
+          rm -rf out/target/common/obj/JAVA_LIBRARIES \
+               out/target/product/TAQ90/obj \
+               out/host/linux-x86/obj/SHARED_LIBRARIES \
+               out/host/linux-x86/obj/STATIC_LIBRARIES 2>/dev/null || true
+          echo "✅ Freed disk space. Current usage:"
+          df -h .
 
       - name: Build Full LineageOS ROM (Bacon)
         run: |
