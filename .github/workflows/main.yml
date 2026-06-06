@@ -67,8 +67,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.ccache
-          key: ccache-taq90-${{ github.run_id }}
-          restore-keys: ccache-taq90-
+          # Use runner.os so the key is the same every time (e.g., ccache-taq90-Linux)
+          key: ccache-taq90-${{ runner.os }}
+          restore-keys: |
+            ccache-taq90-${{ runner.os }}
 
       - name: Init repo
         run: |
@@ -327,11 +329,24 @@ jobs:
           export CKATI_FLAGS=--use_find_emulator
           export JACK_SERVER_VM_ARGUMENTS="-Xmx4096m"
           export PYTHON=python2
+          
+          # CRITICAL: Enable ccache for this specific shell session
+          export USE_CCACHE=1
+          export CCACHE_EXEC=/usr/bin/ccache
+          ccache -M 5G  # Give it 5GB of space
+          ccache -z     # Reset statistics to 0 so we can see how many hits we get this run
+          
           source build/envsetup.sh
           lunch lineage_TAQ90-userdebug
           
           # 'bacon' builds the system and packages it into a flashable ZIP
           make -j$(nproc) bacon
+          
+          # Show ccache statistics at the end to prove it's working!
+          echo "=========================================="
+          echo "=== CCACHE STATISTICS (Look for 'Cache hit') ==="
+          echo "=========================================="
+          ccache -s
 
       - name: Upload to GitHub Releases
         uses: softprops/action-gh-release@v2
