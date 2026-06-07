@@ -1,4 +1,4 @@
-name: Lineage 15.1 TAQ90
+name: Havoc-OS TAQ90
 on:
   workflow_dispatch:
 jobs:
