@@ -96,7 +96,7 @@ jobs:
           cd ~/android/lineage
           git config --global user.email "build@ci.local"
           git config --global user.name "CI Build"
-          repo init -u https://github.com/LineageOS/android.git -b lineage-15.1 --depth=1
+          repo init -u https://github.com/Havoc-OS/android_manifest.git -b oreo --depth=1
 
       - name: Sync source
         run: |
