@@ -96,13 +96,7 @@ jobs:
           cd ~/android/lineage
           git config --global user.email "build@ci.local"
           git config --global user.name "CI Build"
-          repo init -u https://github.com/Havoc-OS/android_manifest.git -b oreo --depth=1
-
-      - name: Sync source
-        run: |
-          cd ~/android/lineage
-          repo sync -c --no-tags --no-clone-bundle --optimized-fetch \
-            --prune --force-sync -j$(nproc)
+          repo init -u https://github.com/Havoc-OS/android_manifest.git -b oreo && repo sync -j16
 
       - name: Clone device tree
         run: |
