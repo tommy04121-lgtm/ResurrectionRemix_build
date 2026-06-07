@@ -304,14 +304,11 @@ jobs:
           rm -rf ~/.jack-server ~/.jack 2>/dev/null || true
           echo "✅ Jack server SSL environment fixed"
 
-      - name: Remove hardcoded telephony-ext from lineage-sdk
+      - name: Nuke telephony-ext from Lineage SDK (No Stubs)
         run: |
           cd ~/android/lineage
-          echo "=== Removing hardcoded telephony-ext from lineage-sdk ==="
-          # This removes the blind dependency that ignores TARGET_USES_NO_TELEPHONY
-          sed -i 's/telephony-ext//g' lineage-sdk/sdk/Android.mk
-          sed -i 's/telephony-ext//g' lineage-sdk/Android.mk
-          echo "✅ lineage-sdk will no longer demand telephony-ext"
+          find lineage-sdk/ -type f \( -name "*.mk" -o -name "*.bp" \) -exec sed -i 's/telephony-ext//g' {} +
+          find lineage-sdk/ -type f \( -name "*.mk" -o -name "*.bp" \) -exec sed -i 's/, \+/,/g; s/\[ ,/[/g; s/, \+]/]/g; s/,\s*,/,/g' {} +
 
       - name: Bulletproof WebView Prebuilt Fix (Git LFS)
         run: |
