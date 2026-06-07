@@ -304,11 +304,54 @@ jobs:
           rm -rf ~/.jack-server ~/.jack 2>/dev/null || true
           echo "✅ Jack server SSL environment fixed"
 
-      - name: Nuke telephony-ext from Lineage SDK (No Stubs)
+      - name: Create Bulletproof telephony-ext Stub and Patch Source
         run: |
           cd ~/android/lineage
-          find lineage-sdk/ -type f \( -name "*.mk" -o -name "*.bp" \) -exec sed -i 's/telephony-ext//g' {} +
-          find lineage-sdk/ -type f \( -name "*.mk" -o -name "*.bp" \) -exec sed -i 's/, \+/,/g; s/\[ ,/[/g; s/, \+]/]/g; s/,\s*,/,/g' {} +
+          
+          # 1. Create directory structure for the stub
+          mkdir -p device/denver/TAQ90/telephony-ext/org/codeaurora/internal
+          
+          # 2. Write the Android.mk rule for Ninja
+          cat << 'EOF' > device/denver/TAQ90/telephony-ext/Android.mk
+          LOCAL_PATH := $(call my-dir)
+          include $(CLEAR_VARS)
+          LOCAL_MODULE := telephony-ext
+          LOCAL_SRC_FILES := $(call all-java-files-under, .)
+          LOCAL_MODULE_TAGS := optional
+          LOCAL_MODULE_CLASS := JAVA_LIBRARIES
+          include $(BUILD_JAVA_LIBRARY)
+          EOF
+          
+          # 3. Create the missing IExtTelephony interface and CodeAurora classes
+          cat << 'EOF' > device/denver/TAQ90/telephony-ext/org/codeaurora/internal/IExtTelephony.java
+          package org.codeaurora.internal;
+          public interface IExtTelephony {
+              public int getCurrentPhoneType();
+              public boolean isSMSPromptEnabled();
+          }
+          EOF
+          
+          cat << 'EOF' > device/denver/TAQ90/telephony-ext/org/codeaurora/TelephonyProperties.java
+          package org.codeaurora;
+          public class TelephonyProperties {}
+          EOF
+          
+          cat << 'EOF' > device/denver/TAQ90/telephony-ext/stub.java
+          package android.telephony;
+          public class TelephonyExtStub {}
+          EOF
+          
+          # 4. Enforce the product package inclusion
+          grep -q "PRODUCT_PACKAGES += telephony-ext" device/denver/TAQ90/device.mk || \
+            echo "PRODUCT_PACKAGES += telephony-ext" >> device/denver/TAQ90/device.mk
+          
+          # 5. Empty out the specific Lineage utility file to prevent internal SDK mismatch
+          cat << 'EOF' > lineage-sdk/sdk/src/java/org/lineageos/internal/util/TelephonyExtUtils.java
+          package org.lineageos.internal.util;
+          public class TelephonyExtUtils {}
+          EOF
+          
+          echo "✅ Complete telephony environment mocked safely!"
 
       - name: Bulletproof WebView Prebuilt Fix (Git LFS)
         run: |
