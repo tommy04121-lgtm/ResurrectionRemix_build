@@ -1,4 +1,4 @@
-name: Havoc-OS TAQ90
+name: Resurrection Remix TAQ90
 on:
   workflow_dispatch:
 permissions:
@@ -86,8 +86,7 @@ jobs:
       - name: Cache ccache
         uses: actions/cache@v4
         with:
-          path: ~/.ccache
-          # Use runner.os so the key is the same every time (e.g., ccache-taq90-Linux)
+          path: /home/runner/.ccache
           key: ccache-taq90-${{ runner.os }}
           restore-keys: |
             ccache-taq90-${{ runner.os }}
@@ -98,8 +97,7 @@ jobs:
           cd ~/android/lineage
           git config --global user.email "build@ci.local"
           git config --global user.name "CI Build"
-          repo init -u https://github.com/Havoc-OS/android_manifest.git -b oreo && repo sync -j16
-
+          repo init -u https://github.com/ResurrectionRemix/platform_manifest.git -b oreo && repo sync -f --force-sync --no-clone-bundle
       - name: Clone device tree
         run: |
           cd ~/android/lineage
@@ -117,68 +115,6 @@ jobs:
           mkdir -p vendor/denver
           cp -r vendor_tmp/vendor/denver/TAQ90 vendor/denver/TAQ90
           rm -rf vendor_tmp
-
-      - name: Surgical Fix for vendor/lineage ckati Crash
-        run: |
-          cd ~/android/lineage
-          
-          echo "=== 1. Enforcing Unix line endings at repo level ==="
-          git config --global core.autocrlf false
-          git config --global core.eol lf
-          
-          echo "=== 2. Overwriting the exact crashing file ==="
-          # Create a known-safe version with guaranteed newline
-          mkdir -p vendor/lineage/prebuilt/common
-          printf '# Include all prebuilt makefiles\ninclude $(call all-makefiles-under,$(LOCAL_PATH))\n' > vendor/lineage/prebuilt/common/Android.mk
-          
-          echo "=== 3. Sanitize bootanimation & charger makefiles ==="
-          for f in vendor/lineage/bootanimation/Android.mk vendor/lineage/charger/Android.mk; do
-            if [ -f "$f" ]; then
-              sed -i 's/[[:space:]]*$//' "$f"
-              sed -i 's/\r$//' "$f"
-              echo "" >> "$f"
-            fi
-          done
-          
-          echo "=== 4. Verify exact bytes (cat -A shows hidden chars) ==="
-          cat -A vendor/lineage/prebuilt/common/Android.mk
-          for f in vendor/lineage/prebuilt/common/Android.mk vendor/lineage/bootanimation/Android.mk vendor/lineage/charger/Android.mk; do
-            if [ -n "$(tail -c 1 "$f")" ]; then echo "⚠️ MISSING NEWLINE: $f"; else echo "✅ OK: $f"; fi
-          done
-          
-          echo "=== 5. Quick ckati dry-run ==="
-          source build/envsetup.sh &> /dev/null
-          lunch lineage_TAQ90-userdebug &> /dev/null
-          make -n recoveryimage 2>&1 | grep -iE "error|warning|commands commence" || echo "✅ Parse validation passed!"
-
-      - name: Debug Makefile Syntax Errors
-        run: |
-          cd ~/android/lineage
-          echo "=== EXACT LINE 34 of build/core/Makefile ==="
-          sed -n '34p' build/core/Makefile | cat -A | head -n 1
-          echo "=== Lines 32-36 for context ==="
-          sed -n '32,36p' build/core/Makefile | cat -A
-          
-          echo "=========================================="
-          echo "2. Searching for hidden TABS in device/vendor trees"
-          echo "=========================================="
-          grep -rnP '^\t' --include="*.mk" device/denver/ vendor/denver/ || echo "No leading tabs found."
-          
-          echo "=========================================="
-          echo "3. Checking the last included file (rcs-service)"
-          echo "=========================================="
-          cat -A vendor/qcom/opensource/rcs-service/Android.mk | head -n 15 || echo "File not found."
-          
-          echo "=========================================="
-          echo "4. Checking for missing 'endif' in device tree"
-          echo "=========================================="
-          for f in device/denver/TAQ90/*.mk; do
-            if [ -f "$f" ]; then
-              if_count=$(grep -c -E 'ifeq|ifneq' "$f" || true)
-              endif_count=$(grep -c 'endif' "$f" || true)
-              echo "$f -> ifeq/ifneq: $if_count | endif: $endif_count"
-            fi
-          done
 
       - name: Harden Build Environment for Lineage 15.1 CI
         run: |
@@ -204,12 +140,6 @@ jobs:
           # 4. Pre-create output dirs to avoid permission races
           mkdir -p out/target/product/TAQ90/obj
           echo "✅ Output directories initialized"
-          
-          # 5. Rockchip mkbootimg fallback (prevents packaging crashes)
-          if ! grep -q "BOARD_MKBOOTIMG_ARGS" device/denver/TAQ90/BoardConfig.mk; then
-            echo "BOARD_MKBOOTIMG_ARGS += --base 0x60000000 --pagesize 2048 --ramdisk_offset 0x62000000 --tags_offset 0x60000100" >> device/denver/TAQ90/BoardConfig.mk
-            echo "✅ Safe mkbootimg args added"
-          fi
 
       - name: Fix Ninja NOTICE.xml Dependency Cycle (Guaranteed)
         run: |
@@ -313,17 +243,16 @@ jobs:
           export CKATI_FLAGS=--use_find_emulator
           export JACK_SERVER_VM_ARGUMENTS="-Xmx4096m"
           export PYTHON=python2
-          
-          # CRITICAL: Enable ccache for this specific shell session
+
+          export CCACHE_DIR=/home/runner/.ccache
           export USE_CCACHE=1
           export CCACHE_EXEC=/usr/bin/ccache
-          ccache -M 5G  # Give it 5GB of space
-          ccache -z     # Reset statistics to 0 so we can see how many hits we get this run
+          ccache -M 5G  
+          ccache -z   
           
           source build/envsetup.sh
           lunch lineage_TAQ90-userdebug
           
-          # 'bacon' builds the system and packages it into a flashable ZIP
           make -j$(nproc) bacon
           
           # Show ccache statistics at the end to prove it's working!
@@ -331,6 +260,20 @@ jobs:
           echo "=== CCACHE STATISTICS (Look for 'Cache hit') ==="
           echo "=========================================="
           ccache -s
+
+      - name: Verify Cache Directory Exists Before Saving
+        run: |
+          echo "=== Checking if ccache directory actually has data ==="
+          if [ -d "/home/runner/.ccache" ]; then
+            echo "✅ Directory exists."
+            echo "=== Directory contents (first 10 files) ==="
+            ls -la /home/runner/.ccache | head -n 10
+            echo "=== Total size of ccache directory ==="
+            du -sh /home/runner/.ccache
+          else
+            echo "❌ FATAL: /home/runner/.ccache DOES NOT EXIST!"
+            exit 1
+          fi
 
       - name: Upload to GitHub Releases
         uses: softprops/action-gh-release@v2
