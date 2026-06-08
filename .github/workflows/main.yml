@@ -1,4 +1,4 @@
-name: Resurrection Remix TAQ90
+name: Resurrection Remix Oreo TAQ90
 on:
   workflow_dispatch:
 permissions:
@@ -236,7 +236,7 @@ jobs:
           echo "✅ Freed disk space. Current usage:"
           df -h .
 
-      - name: Build Full LineageOS ROM (Bacon)
+      - name: Build Full Resurrection Remix Oreo ROM (Bacon)
         run: |
           cd ~/android/lineage
           export ALLOW_MISSING_DEPENDENCIES=true
@@ -279,7 +279,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v${{ github.run_number }}"
-          name: "Lineage 15.1 TAQ90 - Build #${{ github.run_number }}"
+          name: "Resurrection Remix Oreo TAQ90 - Build #${{ github.run_number }}"
           draft: false
           prerelease: false
           files: |
